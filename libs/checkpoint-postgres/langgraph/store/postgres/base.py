@@ -619,20 +619,39 @@ class BasePostgresStore(Generic[C]):
 
         return queries
 
+
     def _get_filter_condition(self, key: str, op: str, value: Any) -> tuple[str, list]:
         """Helper to generate filter conditions."""
+        if not key.isidentifier():
+            raise ValueError("Invalid key")
+
+        op_map = {
+            "$gt": ">",
+            "$gte": ">=",
+            "$lt": "<",
+            "$lte": "<=",
+        }
+
         if op == "$eq":
             return "value->%s = %s::jsonb", [key, json.dumps(value)]
-        elif op == "$gt":
-            return "value->>%s > %s", [key, str(value)]
-        elif op == "$gte":
-            return "value->>%s >= %s", [key, str(value)]
-        elif op == "$lt":
-            return "value->>%s < %s", [key, str(value)]
-        elif op == "$lte":
-            return "value->>%s <= %s", [key, str(value)]
+
         elif op == "$ne":
             return "value->%s != %s::jsonb", [key, json.dumps(value)]
+
+        elif op in op_map:
+            sql_op = op_map[op]
+
+            is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
+
+            if is_number:
+                return (
+                    f"(value->>'{key}') ~ '^[0-9]+(\\.[0-9]+)?$' "
+                    f"AND CAST(value->>'{key}' AS NUMERIC) {sql_op} %s",
+                    [value]
+                )
+            else:
+                return f"value->>'{key}' {sql_op} %s", [str(value)]
+
         else:
             raise ValueError(f"Unsupported operator: {op}")
 
