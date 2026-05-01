@@ -640,17 +640,14 @@ class BasePostgresStore(Generic[C]):
 
         elif op in op_map:
             sql_op = op_map[op]
-
             is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
-
             if is_number:
                 return (
-                    f"(value->>'{key}') ~ '^[0-9]+(\\.[0-9]+)?$' "
-                    f"AND CAST(value->>'{key}' AS NUMERIC) {sql_op} %s",
-                    [value]
+                    f"CAST(value->>%s AS NUMERIC) {sql_op} %s",
+                    [key, value]
                 )
             else:
-                return f"value->>'{key}' {sql_op} %s", [str(value)]
+                return f"value->>%s {sql_op} %s", [key, str(value)]
 
         else:
             raise ValueError(f"Unsupported operator: {op}")
